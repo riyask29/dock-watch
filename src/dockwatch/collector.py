@@ -44,11 +44,17 @@ def upload_snapshot(feed: dict, bucket: str) -> str:
     return f"s3://{bucket}/{key}"
 
 
-def main() -> None:
+def main() -> str:
     feed = fetch_status()
     stations = feed["data"]["stations"]
     where = upload_snapshot(feed, BUCKET) if BUCKET else save_snapshot(feed)
     print(f"saved {len(stations)} stations to {where}")
+    return where
+
+
+def lambda_handler(event, context) -> dict:
+    """Entry point when AWS Lambda runs the collector."""
+    return {"saved": main()}
 
 
 if __name__ == "__main__":
