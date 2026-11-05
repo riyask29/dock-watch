@@ -1,13 +1,15 @@
 """Dock Watch collector: fetch one snapshot of every Bluebikes station."""
-
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
+import boto3
 import requests
 
 FEED_URL = "https://gbfs.lyft.com/gbfs/1.1/bos/en/station_status.json"
 DATA_DIR = Path("data/raw/station_status")
+BUCKET = os.environ.get("DOCKWATCH_BUCKET")
 
 
 def fetch_status() -> dict:
@@ -27,11 +29,26 @@ def save_snapshot(feed: dict) -> Path:
     return path
 
 
+def snapshot_key(feed: dict) -> str:
+    """S3 key with a Hive-style date folder, so Athena can skip other days."""
+    feed_time = datetime.fromtimestamp(feed["last_updated"], tz=timezone.utc)
+    return (f"station_status/dt={feed_time:%Y-%m-%d}/"
+            f"station_status_{feed['last_updated']}.json")
+
+
+def upload_snapshot(feed: dict, bucket: str) -> str:
+    """Upload the raw feed to S3. Same feed twice = same key, so no duplicates."""
+    key = snapshot_key(feed)
+    boto3.client("s3").put_object(Bucket=bucket, Key=key, Body=json.dumps(feed),
+                                  ContentType="application/json")
+    return f"s3://{bucket}/{key}"
+
+
 def main() -> None:
     feed = fetch_status()
-    path = save_snapshot(feed)
     stations = feed["data"]["stations"]
-    print(f"saved {len(stations)} stations to {path}")
+    where = upload_snapshot(feed, BUCKET) if BUCKET else save_snapshot(feed)
+    print(f"saved {len(stations)} stations to {where}")
 
 
 if __name__ == "__main__":
