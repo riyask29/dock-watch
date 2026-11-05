@@ -19,3 +19,7 @@ def test_same_feed_twice_makes_one_file(tmp_path, monkeypatch):
     collector.save_snapshot(fake_feed(1793830944))
     collector.save_snapshot(fake_feed(1793830944))
     assert len(list(tmp_path.rglob("*.json"))) == 1
+
+def test_s3_key_uses_hive_date_folder():
+    key = collector.snapshot_key(fake_feed(1793830944))
+    assert key == "station_status/dt=2026-11-04/station_status_1793830944.json"
